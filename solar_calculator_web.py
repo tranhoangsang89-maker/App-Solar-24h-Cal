@@ -1,469 +1,355 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import os
 
-# Page Configuration
+# Set page config
 st.set_page_config(
     page_title="Solar 24h - Công Cụ Tính Toán Điện Mặt Trời",
     page_icon="☀️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Custom Styling with brand colors (Navy #0A3370 and Gold #FFC20E)
+# Custom Brand Colors CSS
 st.markdown("""
 <style>
-    .main {
-        background-color: #f7f9fc;
+    :root {
+        --navy-blue: #0F2942;
+        --gold-yellow: #F4B41A;
+        --soft-bg: #F4F6F9;
     }
-    .stApp {
-        color: #1e293b;
-    }
-    .brand-title {
-        color: #0A3370;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 800;
+    .main-title {
+        color: #0F2942;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-weight: 700;
         text-align: center;
-        margin-bottom: 2px;
-        font-size: 2.5rem;
+        margin-bottom: 5px;
     }
-    .brand-subtitle {
-        color: #FFC20E;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 600;
+    .sub-title {
+        color: #555;
+        font-size: 1.1rem;
         text-align: center;
         margin-bottom: 25px;
-        font-size: 1.2rem;
-        letter-spacing: 2px;
     }
-    .greeting-card {
-        background: linear-gradient(135deg, #0A3370 0%, #1e40af 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    .solar-girl-card {
+        background-color: #EBF3F9;
+        border-left: 5px solid #0F2942;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
     }
     .metric-card {
         background-color: white;
         padding: 20px;
         border-radius: 10px;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-        border-left: 5px solid #0A3370;
-        margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #EAEAEA;
+        text-align: center;
     }
     .metric-value {
         font-size: 1.8rem;
-        font-weight: 700;
-        color: #0A3370;
+        font-weight: bold;
+        color: #0F2942;
     }
     .metric-label {
         font-size: 0.9rem;
-        color: #64748b;
+        color: #666;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #F4F6F9;
+        border-radius: 4px 4px 0px 0px;
+        padding: 10px 16px;
         font-weight: 600;
+        color: #0F2942;
     }
-    .highlight-gold {
-        color: #FFC20E;
-        font-weight: bold;
-    }
-    .package-box {
-        background-color: #f0fdf4;
-        border: 2px solid #22c55e;
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-    }
-    .package-header {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #15803d;
-        margin-bottom: 10px;
+    .stTabs [aria-selected="true"] {
+        background-color: #0F2942 !important;
+        color: white !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Define packages and specifications
-packages = {
-    "SOLAR F1": {
-        "kwp": 2.3,
-        "pin_count": 4,
-        "storage": "2.5 kWh BSB",
-        "inverter": "LUXPOWER SNA 5kW",
-        "price": 47800000,
-        "min_bill": 0,
-        "max_bill": 500000,
-        "desc": "Phù hợp cho gia đình nhỏ có hóa đơn điện dưới 500.000đ/tháng"
-    },
-    "SOLAR F2": {
-        "kwp": 4.6,
-        "pin_count": 8,
-        "storage": "5 kWh BSB",
-        "inverter": "LUXPOWER SNA 5kW",
-        "price": 68500000,
-        "min_bill": 500001,
-        "max_bill": 1000000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 500.000đ đến 1.000.000đ/tháng"
-    },
-    "SOLAR F3": {
-        "kwp": 5.8,
-        "pin_count": 10,
-        "storage": "10 kWh LS",
-        "inverter": "SVE 6kW",
-        "price": 88000000,
-        "min_bill": 1000001,
-        "max_bill": 1500000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 1.000.000đ đến 1.500.000đ/tháng"
-    },
-    "SOLAR F4": {
-        "kwp": 6.9,
-        "pin_count": 12,
-        "storage": "16 kWh EJOR",
-        "inverter": "SVE 6kW",
-        "price": 104700000,
-        "min_bill": 1500001,
-        "max_bill": 2000000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 1.500.000đ đến 2.000.000đ/tháng"
-    },
-    "SOLAR F5": {
-        "kwp": 8.1,
-        "pin_count": 14,
-        "storage": "16 kWh EJOR/LS",
-        "inverter": "LUXPOWER PRO 6.5kW",
-        "price": 114900000,
-        "min_bill": 2000001,
-        "max_bill": 2500000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 2.000.000đ đến 2.500.000đ/tháng"
-    },
-    "SOLAR F6": {
-        "kwp": 9.3,
-        "pin_count": 16,
-        "storage": "16 kWh EJOR/LS",
-        "inverter": "LUXPOWER 6.5 PRO",
-        "price": 123600000,
-        "min_bill": 2500001,
-        "max_bill": 3000000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 2.500.000đ đến 3.000.000đ/tháng"
-    },
-    "SOLAR F7": {
-        "kwp": 11.4,
-        "pin_count": 20,
-        "storage": "32 kWh EJOR/LS",
-        "inverter": "LUXPOWER 6.5 PRO (x2)",
-        "price": 203000000,
-        "min_bill": 3000001,
-        "max_bill": 4000000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 3.000.000đ đến 4.000.000đ/tháng"
-    },
-    "SOLAR F8": {
-        "kwp": 13.9,
-        "pin_count": 24,
-        "storage": "32 kWh EJOR/LS",
-        "inverter": "LUXPOWER 6.5 PRO (x2)",
-        "price": 217900000,
-        "min_bill": 4000001,
-        "max_bill": 5000000,
-        "desc": "Phù hợp cho gia đình có hóa đơn điện từ 4.000.000đ đến 5.000.000đ/tháng"
-    },
-    "SOLAR F9": {
-        "kwp": 17.4,
-        "pin_count": 30,
-        "storage": "32 kWh EJOR/LS",
-        "inverter": "LUXPOWER 6.5 PRO (x2)",
-        "price": 239000000,
-        "min_bill": 5000001,
-        "max_bill": 7000000,
-        "desc": "Phù hợp cho biệt thự/hộ kinh doanh có hóa đơn điện từ 5.000.000đ đến 7.000.000đ/tháng"
-    },
-    "SOLAR F10": {
-        "kwp": 22.0,
-        "pin_count": 38,
-        "storage": "48 kWh EJOR/LS",
-        "inverter": "LUXPOWER 6.5 PRO (x3)",
-        "price": 329300000,
-        "min_bill": 7000001,
-        "max_bill": 15000000,
-        "desc": "Giải pháp toàn diện cho nhà xưởng/hộ kinh doanh lớn có hóa đơn điện từ 7.000.000đ đến 10.000.000đ/tháng"
-    }
+# Define Solar Packages Data
+PACKAGES = {
+    "SOLAR F1": {"kwp": 2.3, "storage": "2.5 kWh", "inverter": "Luxpower SNA 5kW", "battery": "Lithium BSB", "price": 47800000, "min_bill": 0, "max_bill": 1000000, "panels": 4, "desc": "Phù hợp hóa đơn dưới 1 triệu/tháng. Giúp giảm gánh nặng giá điện lũy tiến bậc cao sinh hoạt."},
+    "SOLAR F2": {"kwp": 4.6, "storage": "5 kWh", "inverter": "Luxpower SNA 5kW", "battery": "Lithium BSB", "price": 68500000, "min_bill": 1000000, "max_bill": 1500000, "panels": 8, "desc": "Phù hợp hóa đơn từ 1.0M đến 1.5 triệu. Dòng Hybrid bán chạy nhất cho hộ gia đình nhỏ lẻ."},
+    "SOLAR F3": {"kwp": 5.8, "storage": "10 kWh", "inverter": "SVE 6kW", "battery": "Lithium LS", "price": 88000000, "min_bill": 1500000, "max_bill": 2000000, "panels": 10, "desc": "Phù hợp hóa đơn từ 1.5M đến 2.0 triệu. Sản lượng lưu trữ lớn thoải mái sử dụng ban đêm."},
+    "SOLAR F4": {"kwp": 6.9, "storage": "16 kWh", "inverter": "SVE 6kW", "battery": "Lithium EJOR", "price": 104700000, "min_bill": 2000000, "max_bill": 2500000, "panels": 12, "desc": "Phù hợp hóa đơn từ 2.0M đến 2.5 triệu. Thừa hưởng cấu hình khủng và pin lưu trữ cực lớn."},
+    "SOLAR F5": {"kwp": 8.1, "storage": "16 kWh", "inverter": "Luxpower PRO 6.5kW", "battery": "Lithium EJOR/LS", "price": 114900000, "min_bill": 2500000, "max_bill": 3000000, "panels": 14, "desc": "Phù hợp hóa đơn từ 2.5M đến 3.0 triệu. Sử dụng Inverter dòng Pro cao cấp thế hệ mới."},
+    "SOLAR F6": {"kwp": 8.1, "storage": "16 kWh", "inverter": "Luxpower 6.5 PRO", "battery": "Lithium EJOR/LS", "price": 123600000, "min_bill": 3000000, "max_bill": 3500000, "panels": 16, "desc": "Phù hợp hóa đơn từ 3.0M đến 3.5 triệu. Giàn pin tối ưu diện tích cho hiệu quả gánh tải tối đa."},
+    "SOLAR F7": {"kwp": 11.4, "storage": "32 kWh", "inverter": "Luxpower 6.5 PRO (x2)", "battery": "Lithium EJOR/LS", "price": 203000000, "min_bill": 3500000, "max_bill": 4000000, "panels": 20, "desc": "Phù hợp hóa đơn từ 3.5M đến 4.0 triệu. Cấu hình 2 Inverter chạy song song bảo đảm công suất kéo tải cực mạnh."},
+    "SOLAR F8": {"kwp": 13.9, "storage": "32 kWh", "inverter": "Luxpower 6.5 PRO (x2)", "battery": "Lithium EJOR/LS", "price": 217900000, "min_bill": 4000000, "max_bill": 5000000, "panels": 24, "desc": "Phù hợp hóa đơn từ 4.0M đến 5.0 triệu. Triệt tiêu hoàn toàn hóa đơn điện bậc sinh hoạt cao nhất."},
+    "SOLAR F9": {"kwp": 17.4, "storage": "32 kWh", "inverter": "Luxpower 6.5 PRO (x2)", "battery": "Lithium EJOR/LS", "price": 239000000, "min_bill": 5000000, "max_bill": 7000000, "panels": 30, "desc": "Phù hợp biệt thự hoặc hộ gia đình lớn kết hợp kinh doanh ban ngày công suất cực cao."},
+    "SOLAR F10": {"kwp": 22.0, "storage": "48 kWh", "inverter": "Luxpower 6.5 PRO (x3)", "battery": "Lithium EJOR/LS", "price": 329300000, "min_bill": 7000000, "max_bill": 15000000, "panels": 38, "desc": "Cấu hình siêu khủng đỉnh chóp của hộ gia đình. Giải pháp tự chủ năng lượng 100% không lo cúp điện."}
 }
 
-# 2026 Progressive Electricity Tariff
-def calculate_kwh_from_bill(pre_tax_bill):
-    # Progressive steps definition
-    steps = [
-        (50, 1984),
-        (50, 2050),
-        (100, 2380),
-        (100, 2998),
-        (100, 3350),
-        (float('inf'), 3460)
-    ]
-    
-    thresholds = [
-        50 * 1984,
-        50 * 1984 + 50 * 2050,
-        50 * 1984 + 50 * 2050 + 100 * 2380,
-        50 * 1984 + 50 * 2050 + 100 * 2380 + 100 * 2998,
-        50 * 1984 + 50 * 2050 + 100 * 2380 + 100 * 2998 + 100 * 3350
-    ]
-    
-    if pre_tax_bill <= thresholds[0]:
-        return pre_tax_bill / steps[0][1]
-    elif pre_tax_bill <= thresholds[1]:
-        return 50 + (pre_tax_bill - thresholds[0]) / steps[1][1]
-    elif pre_tax_bill <= thresholds[2]:
-        return 100 + (pre_tax_bill - thresholds[1]) / steps[2][1]
-    elif pre_tax_bill <= thresholds[3]:
-        return 200 + (pre_tax_bill - thresholds[2]) / steps[3][1]
-    elif pre_tax_bill <= thresholds[4]:
-        return 300 + (pre_tax_bill - thresholds[3]) / steps[4][1]
-    else:
-        return 400 + (pre_tax_bill - thresholds[4]) / steps[5][1]
+# 2026 Progressive Electricity Tariff (EVN)
+TARIF_2026 = [
+    {"limit": 50, "rate": 1984},
+    {"limit": 100, "rate": 2050},
+    {"limit": 200, "rate": 2380},
+    {"limit": 300, "rate": 2998},
+    {"limit": 400, "rate": 3350},
+    {"limit": float('inf'), "rate": 3460}
+]
 
-def calculate_bill_from_kwh(kwh, vat_rate):
-    steps = [
-        (50, 1984),
-        (50, 2050),
-        (100, 2380),
-        (100, 2998),
-        (100, 3350),
-        (float('inf'), 3460)
-    ]
+def calculate_kwh_from_bill(bill_vnd, vat_rate=8):
+    """Calculate consumed kWh from total bill based on 2026 Tariff"""
+    pre_vat_bill = bill_vnd / (1 + vat_rate/100.0)
+    remaining = pre_vat_bill
+    kwh = 0.0
     
-    pre_tax_cost = 0
-    remaining_kwh = kwh
-    
-    for limit, rate in steps:
-        if remaining_kwh <= 0:
-            break
-        consumed = min(remaining_kwh, limit)
-        pre_tax_cost += consumed * rate
-        remaining_kwh -= consumed
+    # We must calculate cumulative costs for each tier
+    tier_costs = []
+    prev_limit = 0
+    for tier in TARIF_2026[:-1]:
+        qty = tier["limit"] - prev_limit
+        tier_costs.append(qty * tier["rate"])
+        prev_limit = tier["limit"]
         
-    return pre_tax_cost * (1 + vat_rate / 100)
+    prev_limit = 0
+    for i, tier in enumerate(TARIF_2026):
+        if tier["limit"] == float('inf'):
+            kwh += remaining / tier["rate"]
+            break
+        
+        step_max_cost = tier_costs[i]
+        if remaining > step_max_cost:
+            qty = tier["limit"] - prev_limit
+            kwh += qty
+            remaining -= step_max_cost
+            prev_limit = tier["limit"]
+        else:
+            kwh += remaining / tier["rate"]
+            break
+            
+    return kwh
 
-# Sidebar brand header
-with st.sidebar:
-    st.markdown("<div style='text-align: center; margin-bottom: 20px;'><h2 style='color:#0A3370; margin-bottom:0px;'>SOLAR 24H</h2><small style='color:#64748b;'>NĂNG LƯỢNG SẠCH - NÂNG TẦM CUỘC SỐNG</small></div>", unsafe_allow_html=True)
+def get_recommended_package(bill_vnd):
+    """Recommend the optimal package based on company standards matching bill brackets"""
+    for code, info in PACKAGES.items():
+        if info["min_bill"] <= bill_vnd < info["max_bill"]:
+            return code, info
+    # Default to last package if exceeds max
+    return "SOLAR F10", PACKAGES["SOLAR F10"]
+
+# Header Row (Title & Logo)
+st.markdown("<h1 class='main-title'>SOLAR 24H ☀️</h1>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Năng lượng sạch - Nâng tầm cuộc sống</div>", unsafe_allow_html=True)
+
+# Grid Layout for Top Panel (Mascot & Introduction)
+col_left, col_right = st.columns([1, 3])
+
+with col_left:
+    # Safely load Solar Girl image if it exists in the user's GitHub images folder
+    # Defaults to local fallback or nice custom styling if missing
+    if os.path.exists("images/solar_girl.jpg"):
+        st.image("images/solar_girl.jpg", use_column_width=True, caption="Solar Girl - Đại sứ Thương hiệu")
+    elif os.path.exists("images/solar_girl.png"):
+        st.image("images/solar_girl.png", use_column_width=True, caption="Solar Girl - Đại sứ Thương hiệu")
+    else:
+        # Show a stylish card if no image found yet
+        st.markdown("""
+        <div style='background-color:#0F2942; color:white; padding:15px; border-radius:10px; text-align:center;'>
+            <span style='font-size:3rem;'>👩‍💼</span>
+            <h4 style='margin:5px 0 0 0;'>Solar Girl</h4>
+            <p style='font-size:0.8rem; margin:5px 0 0 0; color:#F4B41A;'>Sẵn sàng hỗ trợ tư vấn 24/7!</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+with col_right:
     st.markdown("""
-    **Thông Tin Liên Hệ:**
-    - 🏢 **Địa chỉ:** Vòng xoay Quảng Trường Mỹ Tho, Phường Đạo Thạnh
-    - ☎️ **Hotline:** 0909.363.579 - 0896.488.299
-    - 📧 **Email:** Solar24h.tmdv@gmail.com
-    """)
-    st.image("https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=300&auto=format&fit=crop", use_container_width=True)
+    <div class='solar-girl-card'>
+        <strong>Solar Girl chào cả nhà! 👩‍💼</strong><br>
+        Mọi người chỉ cần nhập hóa đơn và tùy chỉnh mức trả trước theo mong muốn. 
+        Hệ thống sẽ tự động tư vấn ạ!
+    </div>
+    """, unsafe_allow_html=True)
 
-# Main layout header
-st.markdown("<div class='brand-title'>SOLAR 24H</div>", unsafe_allow_html=True)
-st.markdown("<div class='brand-subtitle'>CÔNG CỤ HỖ TRỢ TƯ VẤN ĐIỆN MẶT TRỜI THÔNG MINH</div>", unsafe_allow_html=True)
-
-# Interactive Welcome Message requested by user
-st.markdown("""
-<div class='greeting-card'>
-    <h4>Solar Girl chào cả nhà! 👩‍💼</h4>
-    <p style='margin-bottom:0px; font-size:1.05rem;'>
-        Mọi người chỉ cần nhập hóa đơn và tùy chỉnh mức trả trước theo mong muốn. Hệ thống sẽ tự động tư vấn ạ!
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-# Create Tabs
+# Tabs Navigation
 tab1, tab2, tab3 = st.tabs(["📋 Tư Vấn Khách Hàng", "📦 Chi Tiết Gói Lắp Đặt", "🏦 Gói Vay Shinhan Bank"])
 
-# ================= TAB 1: TƯ VẤN KHÁCH HÀNG =================
 with tab1:
-    st.subheader("1. Nhập thông tin hóa đơn hiện tại")
-    col1, col2 = st.columns(2)
-    with col1:
-        current_bill = st.number_input(
-            "Số tiền điện hàng tháng của khách (VNĐ):",
-            min_value=200000,
-            max_value=30000000,
-            value=2700000,
-            step=100000,
-            format="%d"
-        )
-    with col2:
-        vat_rate = st.selectbox(
-            "Thuế VAT áp dụng trên hóa đơn (%):",
-            options=[10, 8, 0],
-            index=1
-        )
+    st.markdown("### Phân Tích Nhu Cầu & Đề Xuất Gói Tối Ưu")
+    
+    col_input1, col_input2, col_input3 = st.columns([2, 1, 2])
+    with col_input1:
+        bill_input = st.number_input("Nhập số tiền điện hàng tháng của khách (VNĐ):", min_value=100000, max_value=50000000, value=2500000, step=100000)
+    with col_input2:
+        vat_input = st.selectbox("Thuế VAT áp dụng:", [8, 10], index=0)
+    
+    consumed_kwh = calculate_kwh_from_bill(bill_input, vat_input)
+    avg_daily_kwh = consumed_kwh / 30.0
+    
+    # Recommendation calculation
+    pkg_code, pkg_info = get_recommended_package(bill_input)
+    
+    # Output metrics grid
+    col_m1, col_m2, col_m3 = st.columns(3)
+    with col_m1:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-value'>{consumed_kwh:.1f} kWh</div>
+            <div class='metric-label'>LƯỢNG ĐIỆN TIÊU THỤ THỰC TẾ</div>
+            <div style='font-size:0.8rem; color:#888;'>~ {avg_daily_kwh:.2f} kWh (số điện) / ngày</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_m2:
+        st.markdown(f"""
+        <div class='metric-card' style='border-top: 4px solid #F4B41A;'>
+            <div class='metric-value' style='color:#F4B41A;'>{pkg_code}</div>
+            <div class='metric-label'>GÓI ĐỀ XUẤT TỐI ƯU</div>
+            <div style='font-size:0.8rem; color:#888;'>Công suất {pkg_info["kwp"]} kWp · Trọn gói: {pkg_info["price"]:,}đ</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_m3:
+        # Savings Calculations
+        expected_new_bill = 0.0 # Standard hybrid F-series wipes out bills completely
+        monthly_saving = bill_input - expected_new_bill
+        annual_saving = monthly_saving * 12
+        roi_years = pkg_info["price"] / annual_saving if annual_saving > 0 else 0
         
-    pre_tax_bill = current_bill / (1 + vat_rate / 100)
-    kwh_consumed = calculate_kwh_from_bill(pre_tax_bill)
-    
-    st.markdown(f"""
-    <div class='metric-card'>
-        <div class='metric-label'>LƯỢNG ĐIỆN TIÊU THỤ THỰC TẾ DỰA TRÊN BIỂU GIÁ 2026</div>
-        <div class='metric-value'>{kwh_consumed:,.2f} kWh / tháng</div>
-        <div style='color: #0A3370; font-weight:600; margin-top:5px;'>Trung bình khoảng {kwh_consumed/30:,.2f} kWh (số điện) mỗi ngày</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Identify the best package
-    recommended_package_name = "SOLAR F1"
-    for name, spec in packages.items():
-        if spec["min_bill"] <= current_bill <= spec["max_bill"]:
-            recommended_package_name = name
-            break
-    else:
-        if current_bill > 15000000:
-            recommended_package_name = "SOLAR F10"
-            
-    rec_spec = packages[recommended_package_name]
-    
-    st.subheader("2. Gói lắp đặt đề xuất & Tính toán tài chính")
-    
-    st.markdown(f"""
-    <div class='package-box'>
-        <div class='package-header'>🌟 GÓI ĐỀ XUẤT TỐI ƯU: {recommended_package_name}</div>
-        <p><b>Công suất:</b> {rec_spec['kwp']} kWp | <b>Giá trọn gói:</b> {rec_spec['price']:,.0f}đ</p>
-        <p><b>Cấu hình:</b> {rec_spec['pin_count']} tấm pin AE Solar 580W | Biến tần: {rec_spec['inverter']} | Lưu trữ: {rec_spec['storage']}</p>
-        <p style='margin-bottom:0px; color:#166534;'><i>{rec_spec['desc']}</i></p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Financial calculations
-    solar_generation_monthly = rec_spec['kwp'] * 4.3 * 30 * 0.82
-    new_kwh_consumed = max(0.0, kwh_consumed - solar_generation_monthly)
-    new_bill = calculate_bill_from_kwh(new_kwh_consumed, vat_rate)
-    monthly_saving = current_bill - new_bill
-    annual_saving = monthly_saving * 12
-    roi_years = rec_spec['price'] / annual_saving if annual_saving > 0 else 99
-    
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
         st.markdown(f"""
         <div class='metric-card'>
-            <div class='metric-label'>HÓA ĐƠN ĐIỆN MỚI DỰ KIẾN</div>
-            <div class='metric-value'>{new_bill:,.0f} đ</div>
-            <div style='color: #15803d; font-weight:600; margin-top:5px;'>Tiết kiệm {monthly_saving:,.0f} đ / tháng</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_b:
-        st.markdown(f"""
-        <div class='metric-card'>
-            <div class='metric-label'>TIẾT KIỆM HÀNG NĂM</div>
-            <div class='metric-value'>{annual_saving:,.0f} đ</div>
-            <div style='color: #0A3370; font-weight:600; margin-top:5px;'>Tận hưởng điện xanh 20 - 30 năm tới</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_c:
-        st.markdown(f"""
-        <div class='metric-card'>
+            <div class='metric-value' style='color:#28A745;'>{roi_years:.1f} Năm</div>
             <div class='metric-label'>THỜI GIAN HÒA VỐN (ROI)</div>
-            <div class='metric-value'>{roi_years:,.1f} Năm</div>
-            <div style='color: #0A3370; font-weight:600; margin-top:5px;'>Bảo hành thiết bị lên tới 15 - 30 năm</div>
+            <div style='font-size:0.8rem; color:#28A745;'>Tiết kiệm: {monthly_saving:,.0f}đ / tháng</div>
         </div>
         """, unsafe_allow_html=True)
-
-    # 3. Dynamic Prepayment and Loan Calculator
-    st.subheader("3. Thiết lập phương án trả góp Shinhan Bank (Lãi phẳng 0.59%/tháng)")
-    
-    # Determine minimum prepayment required
-    # Max loan from Shinhan is 100M
-    max_loan_limit = 100000000
-    min_prepay = max(0, rec_spec['price'] - max_loan_limit)
-    
-    prepay_col, loan_col = st.columns(2)
-    with prepay_col:
-        prepayment = st.number_input(
-            "Tiền khách trả trước (VNĐ):",
-            min_value=int(min_prepay),
-            max_value=int(rec_spec['price']),
-            value=int(min_prepay),
-            step=1000000,
-            format="%d"
-        )
-        if min_prepay > 0:
-            st.info(f"⚠️ Do gói có giá trị lớn hơn hạn mức của Shinhan Bank (100 triệu), khách cần trả trước tối thiểu là {min_prepay:,.0f}đ.")
-            
-    with loan_col:
-        actual_loan = rec_spec['price'] - prepayment
-        st.markdown(f"""
-        <div style='background-color:#eff6ff; padding:15px; border-radius:8px; border-left:5px solid #2563eb;'>
-            <div style='font-size:0.85rem; color:#1e40af; font-weight:600;'>KHOẢN TIỀN CẦN VAY THỰC TẾ</div>
-            <div style='font-size:1.6rem; font-weight:700; color:#1e40af;'>{actual_loan:,.0f} đ</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if actual_loan > 0:
-        st.write("#### 📊 Bảng Tính Trả Góp Chi Tiết Cá Nhân Hóa:")
         
-        durations = [12, 24, 36, 48]
-        rows = []
-        for dur in durations:
-            principal_monthly = actual_loan / dur
-            interest_monthly = actual_loan * 0.0059
-            total_monthly = principal_monthly + interest_monthly
-            net_cashflow = monthly_saving - total_monthly
-            total_interest = interest_monthly * dur
+    st.markdown("---")
+    st.markdown("### 💰 Thiết Lập Phương Án Tài Chính (Shinhan Bank - Lãi suất phẳng 0.59%/tháng)")
+    
+    # Set maximum loan limit based on Shinhan parameters
+    max_loan_limit = min(float(pkg_info["price"]), 100000000.0)
+    
+    col_fin1, col_input_pre = st.columns([1, 1])
+    with col_fin1:
+        loan_selected = st.slider("Số tiền ngân hàng hỗ trợ trả góp (VNĐ):", min_value=0, max_value=int(max_loan_limit), value=int(max_loan_limit), step=10000000)
+    with col_input_pre:
+        custom_prepay = pkg_info["price"] - loan_selected
+        st.write("") # vertical spacing align
+        st.markdown(f"""
+        <div style='background-color:#F4F6F9; padding: 12px; border-radius:6px; font-weight:600; text-align:center; border: 1px solid #DDD;'>
+            Tiền khách tự thanh toán (Trả trước): <span style='color:#0F2942; font-size:1.1rem;'>{custom_prepay:,.0f} VNĐ</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    if loan_selected > 0:
+        st.markdown("#### Bảng dự toán nghĩa vụ trả góp hàng tháng")
+        
+        # Build live amortization comparison table
+        terms = [12, 24, 36, 48]
+        amort_data = []
+        for term in terms:
+            monthly_principal = loan_selected / term
+            monthly_interest = loan_selected * 0.0059 # 0.59% Flat Rate
+            total_monthly = monthly_principal + monthly_interest
+            net_flow = monthly_saving - total_monthly
+            total_interest = monthly_interest * term
             
-            cashflow_text = f"+{net_cashflow:,.0f}đ (Dư ra)" if net_cashflow >= 0 else f"{net_cashflow:,.0f}đ (Bù thêm)"
-            
-            rows.append({
-                "Kỳ hạn (Tháng)": f"{dur} tháng",
-                "Khoản vay (đ)": f"{actual_loan:,.0f}đ",
-                "Tiền gốc/tháng (đ)": f"{principal_monthly:,.0f}đ",
-                "Tiền lãi/tháng (đ)": f"{interest_monthly:,.0f}đ",
-                "Tổng Góp/tháng (đ)": f"{total_monthly:,.0f}đ",
-                "Dòng tiền thực tế (đ)": cashflow_text,
-                "Tổng lãi trả ngân hàng (đ)": f"{total_interest:,.0f}đ"
+            if net_flow >= 0:
+                flow_desc = f"+{net_flow:,.0f}đ (Dư ra túi)"
+                flow_color = "color:#28A745; font-weight:bold;"
+            else:
+                flow_desc = f"{net_flow:,.0f}đ (Bù thêm)"
+                flow_color = "color:#DC3545; font-weight:bold;"
+                
+            amort_data.append({
+                "Kỳ hạn": f"{term} Tháng",
+                "Khoản vay": f"{loan_selected:,.0f}đ",
+                "Gốc/tháng": f"{monthly_principal:,.0f}đ",
+                "Lãi/tháng (0.59%)": f"{monthly_interest:,.0f}đ",
+                "Tổng Góp/tháng": f"{total_monthly:,.0f}đ",
+                "Dòng tiền thực tế": flow_desc,
+                "Tổng lãi": f"{total_interest:,.0f}đ"
             })
             
-        df_loan = pd.DataFrame(rows)
-        st.dataframe(df_loan, use_container_width=True, hide_index=True)
-        st.caption("(*) Lãi suất phẳng áp dụng cố định 0.59%/tháng theo gói hỗ trợ tín dụng xanh của Shinhan Bank.")
+        df_amort = pd.DataFrame(amort_data)
+        st.table(df_amort.set_index("Kỳ hạn"))
+        st.markdown("<p style='font-size:0.85rem; color:#666;'>*Ghi chú: <strong>Dòng tiền thực tế</strong> = Số tiền điện tiết kiệm hàng tháng - Tiền góp hàng tháng. Dòng tiền dương (+) nghĩa là khách hàng không cần bỏ thêm tiền túi mà còn tiết kiệm dôi dư thêm tiền hàng tháng.</p>", unsafe_allow_html=True)
     else:
-        st.success("🎉 Chúc mừng quý khách đã tự chủ năng lượng 100% bằng tiền mặt không lo trả góp và lãi vay!")
+        st.success("Khách hàng thanh toán trực tiếp 100% bằng tiền mặt. Hưởng trọn vẹn dòng tiền tiết kiệm điện mà không mất bất cứ khoản lãi vay nào!")
 
-# ================= TAB 2: CHI TIẾT GÓI LẮP ĐẶT =================
 with tab2:
-    st.subheader("Tra cứu thông số kỹ thuật 10 gói Hybrid Solar 24h")
+    st.markdown("### Danh Sách Toàn Bộ Hệ Thống Hybrid Cao Cấp Solar 24h")
     
-    # Custom kWp quick calculator
-    with st.expander("➕ Công cụ tính nhanh sản lượng theo số kWp tùy chỉnh"):
-        custom_kwp = st.number_input("Nhập số kWp mong muốn:", min_value=1.0, max_value=100.0, value=5.0, step=0.5)
-        gen_day = custom_kwp * 4.3 * 0.82
-        gen_month = gen_day * 30
-        required_area = custom_kwp * 5.5
+    # Option to view equipment image if uploaded to GitHub images directory
+    if os.path.exists("images/solar_equipment.jpg"):
+        st.image("images/solar_equipment.jpg", use_column_width=True, caption="Hệ Thống Thiết Bị Điện Mặt Trời Hybrid Hiện Đại")
+    elif os.path.exists("images/solar_equipment.png"):
+        st.image("images/solar_equipment.png", use_column_width=True, caption="Hệ Thống Thiết Bị Điện Mặt Trời Hybrid Hiện Đại")
+    
+    st.markdown("Chọn một gói để xem chi tiết vật tư, cấu hình thiết bị chuyên sâu:")
+    
+    selected_code = st.selectbox("Chọn gói sản phẩm:", list(PACKAGES.keys()), index=1) # Default F2
+    pkg_detail = PACKAGES[selected_code]
+    
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        st.markdown(f"""
+        <div style='background-color:#F8F9FA; padding:20px; border-radius:10px; border-left:5px solid #F4B41A;'>
+            <h4 style='color:#0F2942; margin-top:0;'>📐 Cấu Hình {selected_code}</h4>
+            <ul style='list-style-type: none; padding-left: 0; line-height:1.8;'>
+                <li><strong>Tổng công suất giàn pin:</strong> {pkg_detail["kwp"]} kWp</li>
+                <li><strong>Số lượng tấm pin (AE Solar 580W):</strong> {pkg_detail["panels"]} Tấm (Mono TOPCon)</li>
+                <li><strong>Diện tích mái tối thiểu:</strong> {pkg_detail["kwp"] * 6:.1f} m²</li>
+                <li><strong>Hệ thống Biến tần Inverter:</strong> {pkg_detail["inverter"]}</li>
+                <li><strong>Hệ thống bình lưu trữ Lithium:</strong> {pkg_detail["storage"]} ({pkg_detail["battery"]})</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
         
-        col_c1, col_c2, col_c3 = st.columns(3)
-        col_c1.metric("Sản lượng ngày dự kiến", f"{gen_day:.2f} kWh/ngày")
-        col_c2.metric("Sản lượng tháng dự kiến", f"{gen_month:.0f} kWh/tháng")
-        col_c3.metric("Diện tích mái tối thiểu", f"{required_area:.1f} m²")
-        st.caption("(*) Tính toán dựa trên số giờ nắng đỉnh trung bình 4.3 giờ/ngày tại Tiền Giang/Đồng Tháp và hệ số hiệu suất 0.82.")
-
-    # Package list table
-    pkg_data = []
-    for name, spec in packages.items():
-        daily_gen = spec["kwp"] * 4.3 * 0.82
+    with col_d2:
+        # Calculate standard generation
+        daily_gen = pkg_detail["kwp"] * 4.3 * 0.82
         monthly_gen = daily_gen * 30
-        pkg_data.append({
-            "Mã Gói": name,
-            "Công Suất (kWp)": spec["kwp"],
-            "Số Tấm Pin (580W)": spec["pin_count"],
-            "Biến Tần": spec["inverter"],
-            "Pin Lưu Trữ": spec["storage"],
-            "Sản Lượng (kWh/tháng)": f"~{monthly_gen:,.0f}",
-            "Đơn Giá (đ)": f"{spec['price']:,.0f}đ"
-        })
         
-    df_pkg = pd.DataFrame(pkg_data)
-    st.dataframe(df_pkg, use_container_width=True, hide_index=True)
+        st.markdown(f"""
+        <div style='background-color:#F8F9FA; padding:20px; border-radius:10px; border-left:5px solid #0F2942;'>
+            <h4 style='color:#0F2942; margin-top:0;'>📈 Sản Lượng & Tiết Kiệm Dự Kiến</h4>
+            <ul style='list-style-type: none; padding-left: 0; line-height:1.8;'>
+                <li><strong>Giá trọn gói lắp đặt:</strong> <span style='font-size:1.2rem; color:#0F2942; font-weight:bold;'>{pkg_detail["price"]:,} VNĐ</span></li>
+                <li><strong>Sản lượng điện hàng ngày:</strong> {daily_gen:.1f} - {daily_gen*1.2:.1f} kWh / ngày</li>
+                <li><strong>Sản lượng điện hàng tháng:</strong> ~ {monthly_gen:,.0f} kWh (số điện)</li>
+                <li><strong>Khả năng chống dột & cách nhiệt:</strong> Giảm 3-5°C nhiệt độ mái, bảo hành 100% không thấm dột.</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
-# ================= TAB 3: GÓI VAY SHINHAN BANK =================
 with tab3:
-    st.subheader("Thông tin chương trình vay tiêu dùng xanh Shinhan Bank")
+    st.markdown("### Quy Trình Vay & Ưu Điểm Đối Tác Shinhan Bank")
     st.markdown("""
-    **Solar 24h** liên kết chặt chẽ cùng đối tác tài chính nước ngoài **Shinhan Bank** mang đến giải pháp tín dụng xanh vô cùng ưu đãi phục vụ chuyển đổi năng lượng:
+    <div style='background-color:#EBF3F9; padding:20px; border-radius:8px;'>
+        <h4 style='color:#0F2942; margin-top:0;'>🎯 Ưu Điểm Tuyệt Đối Của Gói Vay Shinhan Bank</h4>
+        <ul style='line-height:1.8;'>
+            <li><strong>Lãi suất phẳng cực tốt:</strong> Chỉ <strong>0.59%/tháng</strong> cố định trọn đời.</li>
+            <li><strong>Hạn mức cho vay:</strong> Hỗ trợ tối đa lên đến <strong>100.000.000 VNĐ</strong>.</li>
+            <li><strong>Hồ sơ thủ tục siêu đơn giản:</strong> Chỉ cần <strong>CCCD có gắn chip</strong> và <strong>Hóa đơn tiền điện sinh hoạt</strong> của gia đình.</li>
+            <li><strong>Không cần chứng minh thu nhập:</strong> Xét duyệt và phê duyệt khoản vay cực nhanh trực tuyến.</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
     
-    *   **Lãi suất cố định phẳng cực thấp:** **0.59% / tháng** (Giảm thiểu hơn 80% áp lực lãi so với tài chính tiêu dùng thông thường).
-    *   **Hạn mức hỗ trợ tối đa:** **100.000.000 VNĐ** (Hỗ trợ vay 100% không trả trước cho các gói F1, F2, F3).
-    *   **Thời gian duyệt hồ sơ:** Siêu nhanh, nhận kết quả phê duyệt chỉ trong ngày.
-    *   **Thủ tục hồ sơ cực kỳ tinh giản:**
-        - 🪪 **Căn cước công dân gắn chip** (bản gốc để đối chiếu).
-        - ⚡ **Hóa đơn tiền điện sinh hoạt** của 3 tháng gần nhất để đối chứng tiêu dùng.
-        - 📄 Không yêu cầu sao kê lương hay chứng minh nguồn thu nhập phức tạp!
+    st.markdown("#### Quy trình 4 bước đơn giản để lắp đặt điện mặt trời 0 đồng:")
+    st.markdown("""
+    1. **Khảo sát & Tư vấn:** Nhân viên Solar 24h đo đạc thông số mái, lập sơ đồ 3D và lập bảng dự toán dòng tiền hoàn toàn miễn phí.
+    2. **Lên hồ sơ vay:** Kỹ thuật viên hướng dẫn chụp ảnh CCCD và hóa đơn tiền điện gửi Shinhan Bank thẩm duyệt.
+    3. **Phê duyệt & Giải ngân:** Shinhan Bank phê duyệt trong ngày, giải ngân trực tiếp cho dự án.
+    4. **Thi công & Nghiệm thu:** Đội ngũ kỹ thuật Solar 24h hoàn thành thi công đúng kỹ thuật trong vòng 2-3 ngày, bàn giao app theo dõi năng lượng.
     """)
-    
-    st.info("💡 Mẹo tư vấn cho khách hàng: Hãy vẽ ra viễn cảnh 'Lấy tiền điện trả tiền góp'. Với lãi phẳng 0.59%/tháng, tổng số tiền góp định kỳ hàng tháng thường chỉ tương đương hoặc nhỉnh hơn một chút so với số tiền điện thực tế mà hệ thống đã giúp gia đình họ cắt giảm!")
+
+# Footer with corporate info
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #888; font-size: 0.85rem;'>
+    <strong>CÔNG TY TNHH TMDV SOLAR 24H</strong><br>
+    Vòng xoay Quảng Trường Mỹ Tho, Phường Đạo Thạnh, Tỉnh Đồng Tháp<br>
+    Hotline tư vấn & khảo sát miễn phí: 0909.363.579 - 0896.488.299<br>
+    © 2026 Solar 24h. Bảo lưu mọi quyền.
+</div>
+""", unsafe_allow_html=True)
